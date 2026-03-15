@@ -43,7 +43,7 @@ def init_db():
         start_time TIME,
         end_time TIME,
         is_open INTEGER DEFAULT 0
-    ''')
+    )''')
     
     # 创建默认管理员
     c.execute("SELECT * FROM users WHERE username = 'admin'")
@@ -267,5 +267,4 @@ def today_stats():
     return {'applications': []}
 
 if __name__ == '__main__':
-    init_db()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
