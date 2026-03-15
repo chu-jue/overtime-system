@@ -1,55 +1,58 @@
-# 加班审批系统 (Overtime Approval System)
+# 🏢 加班审批系统
 
-一个简单的加班申请审批系统，支持员工提交加班申请、领导审批管理。
+一个支持多批次的加班申请审批系统。
 
-## 功能
-
-### 员工功能
-- 填写个人信息（职级、姓名）
-- 提交加班申请（加班日期、理由、工作内容）
-- 每天只能提交一次，提交后可修改
-- 查看当日加班统计
-
-### 领导功能
-- 设置开放日期（某一天开放申请）
-- 设置加班日期（申请的是哪一天的加班）
-- 设置申请开始/结束时间
-- 查看所有员工加班申请
-
-## 技术栈
-
-- Flask (Web 框架)
-- SQLite (数据库)
-- HTML/CSS (前端)
-
-## 本地运行
+## 🚀 快速启动
 
 ```bash
+# 1. 克隆项目
+git clone https://github.com/chu-jue/overtime-system.git
+cd overtime-system
+
+# 2. 一键启动
+python3 start.py
+```
+
+或者手动启动：
+
+```bash
+# 安装依赖
 pip install flask
 
-python app.py
+# 启动服务
+python3 app.py
 ```
 
-访问 http://localhost:5000
+## 📍 访问地址
 
-## 默认账号
+- 本地: http://localhost:5001
+- 服务器: http://你的服务器IP:5001
 
-- 领导账号：`admin` / `admin123`
-- 员工账号：注册后使用
+## 👤 账号
 
-## 目录结构
+| 角色 | 用户名 | 密码 |
+|------|--------|------|
+| 领导 | admin | admin123 |
+| 员工 | 注册或批量创建 | - |
 
-```
-overtime-system/
-├── app.py          # 主应用
-├── database.db     # SQLite数据库
-├── templates/      # HTML模板
-│   ├── index.html
-│   ├── login.html
-│   ├── register.html
-│   ├── apply.html
-│   ├── admin.html
-│   └── stats.html
-└── static/         # 静态文件
-    └── style.css
-```
+## 📱 功能
+
+### 领导功能
+- 创建/管理加班批次
+- 设置开放日期（多选）
+- 开启/关闭批次
+- 批量创建员工
+- 查看所有申请
+
+### 员工功能
+- 申请加班（多选日期）
+- 修改申请
+- 查看统计
+
+## 🛠️ 技术栈
+
+- Flask + SQLite
+
+## 📝 职级
+
+CL1 - CL8

@@ -111,17 +111,19 @@ header h1 {
 }
 
 .btn-small {
-    background: rgba(255,255,255,0.2);
+    background: #667eea;
     color: white;
     padding: 8px 15px;
     border-radius: 6px;
     text-decoration: none;
     font-size: 14px;
     transition: background 0.2s;
+    border: none;
+    cursor: pointer;
 }
 
 .btn-small:hover {
-    background: rgba(255,255,255,0.3);
+    background: #5568d3;
 }
 
 .alert {
@@ -191,6 +193,87 @@ header h1 {
 
 .link a:hover {
     text-decoration: underline;
+}
+
+.batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.batch-header h2 {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.badge-open {
+    background: #4caf50;
+    color: white;
+}
+
+.badge-closed {
+    background: #999;
+    color: white;
+}
+
+.btn-danger {
+    background: #f44336;
+}
+
+.btn-danger:hover {
+    background: #d32f2f;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.checkbox-label:hover {
+    background: #e0e0e0;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.batch-section {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.batch-section:last-child {
+    border-bottom: none;
+}
+
+.hint {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 15px;
 }
 
 table {

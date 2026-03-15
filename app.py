@@ -1,13 +1,12 @@
 import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
-from datetime import datetime, date
-import os
+from datetime import datetime, date, timedelta
+import json
 
 app = Flask(__name__)
 app.secret_key = 'overtime-system-secret-key-2024'
 DB_PATH = '/root/.openclaw/workspace/overtime-system/database.db'
 
-# 初始化数据库
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -22,39 +21,33 @@ def init_db():
         is_admin INTEGER DEFAULT 0
     )''')
     
-    # 加班申请表
+    # 加班批次表（领导创建）
+    c.execute('''CREATE TABLE IF NOT EXISTS overtime_batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        dates TEXT NOT NULL,  -- JSON数组，如 ["2026-03-18", "2026-03-19"]
+        is_open INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # 员工申请表
     c.execute('''CREATE TABLE IF NOT EXISTS applications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        overtime_date DATE NOT NULL,
+        batch_id INTEGER NOT NULL,
+        selected_dates TEXT NOT NULL,  -- JSON数组，员工选择的日期
         reason TEXT NOT NULL,
         work_content TEXT NOT NULL,
-        status TEXT DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, overtime_date)
-    )''')
-    
-    # 系统设置表
-    c.execute('''CREATE TABLE IF NOT EXISTS settings (
-        id INTEGER PRIMARY KEY,
-        open_date DATE,
-        overtime_date DATE,
-        start_time TIME,
-        end_time TIME,
-        is_open INTEGER DEFAULT 0
+        FOREIGN KEY (batch_id) REFERENCES overtime_batches(id)
     )''')
     
     # 创建默认管理员
     c.execute("SELECT * FROM users WHERE username = 'admin'")
     if not c.fetchone():
         c.execute("INSERT INTO users (username, password, name, rank, is_admin) VALUES (?, ?, ?, ?, ?)",
-                  ('admin', 'admin123', '领导', 'L10', 1))
-    
-    # 初始化设置
-    c.execute("SELECT * FROM settings WHERE id = 1")
-    if not c.fetchone():
-        c.execute("INSERT INTO settings (id, is_open) VALUES (1, 0)")
+                  ('admin', 'admin123', '领导', 'CL10', 1))
     
     conn.commit()
     conn.close()
@@ -130,18 +123,32 @@ def index():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    # 获取系统设置
     conn = get_db()
-    settings = conn.execute('SELECT * FROM settings WHERE id = 1').fetchone()
     
-    # 获取用户今天的申请
-    today = date.today()
-    application = conn.execute(
-        'SELECT * FROM applications WHERE user_id = ? AND overtime_date = ?',
-        (session['user_id'], today)
-    ).fetchone()
+    # 获取所有开放的加班批次
+    batches_raw = conn.execute('SELECT * FROM overtime_batches WHERE is_open = 1 ORDER BY created_at DESC').fetchall()
     
-    return render_template('index.html', settings=settings, application=application)
+    # 解析日期JSON
+    batches = []
+    for b in batches_raw:
+        batch = dict(b)
+        batch['dates'] = json.loads(batch['dates'])
+        batches.append(batch)
+    
+    # 获取用户已提交的申请
+    user_applications = conn.execute(
+        'SELECT * FROM applications WHERE user_id = ?', 
+        (session['user_id'],)
+    ).fetchall()
+    
+    # 整理用户申请数据，按batch_id分组
+    user_apps_by_batch = {}
+    for app in user_applications:
+        app_dict = dict(app)
+        app_dict['selected_dates'] = json.loads(app_dict['selected_dates'])
+        user_apps_by_batch[str(app_dict['batch_id'])] = app_dict
+    
+    return render_template('index.html', batches=batches, user_applications=user_apps_by_batch)
 
 # 提交/修改申请
 @app.route('/apply', methods=['POST'])
@@ -149,50 +156,54 @@ def apply():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    conn = get_db()
-    settings = conn.execute('SELECT * FROM settings WHERE id = 1').fetchone()
-    
-    # 检查是否开放
-    if not settings or not settings['is_open']:
-        flash('申请尚未开放')
-        return redirect(url_for('index'))
-    
-    overtime_date = request.form['overtime_date']
+    batch_id = request.form.get('batch_id')
+    dates_input = request.form.get('dates', '[]')  # 获取JSON字符串
     reason = request.form['reason']
     work_content = request.form['work_content']
     
-    # 检查是否在申请时间内
-    now = datetime.now().time()
-    if settings['start_time'] and settings['start_time'] != '':
-        start = datetime.strptime(settings['start_time'], '%H:%M').time()
-        if now < start:
-            flash('申请时间未到')
-            return redirect(url_for('index'))
-    if settings['end_time'] and settings['end_time'] != '':
-        end = datetime.strptime(settings['end_time'], '%H:%M').time()
-        if now > end:
-            flash('申请时间已过')
+    # 解析日期JSON
+    try:
+        selected_dates = json.loads(dates_input)
+    except:
+        selected_dates = request.form.getlist('dates')
+    
+    if not selected_dates:
+        flash('请至少选择一个加班日期')
+        return redirect(url_for('index'))
+    
+    conn = get_db()
+    
+    # 检查批次是否存在且开放
+    batch = conn.execute('SELECT * FROM overtime_batches WHERE id = ? AND is_open = 1', (batch_id,)).fetchone()
+    if not batch:
+        flash('该加班批次不存在或已关闭')
+        return redirect(url_for('index'))
+    
+    # 检查日期是否在允许范围内
+    allowed_dates = json.loads(batch['dates'])
+    for d in selected_dates:
+        if d not in allowed_dates:
+            flash(f'日期 {d} 不在允许范围内')
             return redirect(url_for('index'))
     
-    # 检查今天是否已提交
-    today = date.today()
+    # 检查是否已存在申请
     existing = conn.execute(
-        'SELECT * FROM applications WHERE user_id = ? AND overtime_date = ?',
-        (session['user_id'], overtime_date)
+        'SELECT * FROM applications WHERE user_id = ? AND batch_id = ?',
+        (session['user_id'], batch_id)
     ).fetchone()
     
+    selected_dates_json = json.dumps(selected_dates)
+    
     if existing:
-        # 更新
         conn.execute('''UPDATE applications 
-                       SET reason = ?, work_content = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE user_id = ? AND overtime_date = ?''',
-                    (reason, work_content, session['user_id'], overtime_date))
+                       SET selected_dates = ?, reason = ?, work_content = ?, updated_at = CURRENT_TIMESTAMP
+                       WHERE user_id = ? AND batch_id = ?''',
+                    (selected_dates_json, reason, work_content, session['user_id'], batch_id))
         flash('申请已更新')
     else:
-        # 插入
-        conn.execute('''INSERT INTO applications (user_id, overtime_date, reason, work_content)
-                       VALUES (?, ?, ?, ?)''',
-                    (session['user_id'], overtime_date, reason, work_content))
+        conn.execute('''INSERT INTO applications (user_id, batch_id, selected_dates, reason, work_content)
+                       VALUES (?, ?, ?, ?, ?)''',
+                    (session['user_id'], batch_id, selected_dates_json, reason, work_content))
         flash('申请提交成功')
     
     conn.commit()
@@ -205,20 +216,18 @@ def stats():
         return redirect(url_for('login'))
     
     conn = get_db()
-    settings = conn.execute('SELECT * FROM settings WHERE id = 1').fetchone()
     
-    # 获取指定日期的申请
-    if settings and settings['overtime_date']:
-        applications = conn.execute('''SELECT a.*, u.name, u.rank 
+    # 获取所有开放的批次
+    batches = conn.execute('SELECT * FROM overtime_batches WHERE is_open = 1').fetchall()
+    
+    # 获取所有申请
+    all_applications = conn.execute('''SELECT a.*, u.name, u.rank, b.name as batch_name
                                        FROM applications a 
-                                       JOIN users u ON a.user_id = u.id 
-                                       WHERE a.overtime_date = ?
-                                       ORDER BY u.rank, u.name''', 
-                                   (settings['overtime_date'],)).fetchall()
-    else:
-        applications = []
+                                       JOIN users u ON a.user_id = u.id
+                                       JOIN overtime_batches b ON a.batch_id = b.id
+                                       ORDER BY b.id, a.created_at''').fetchall()
     
-    return render_template('stats.html', applications=applications, settings=settings)
+    return render_template('stats.html', applications=all_applications, batches=batches)
 
 # 管理后台
 @app.route('/admin', methods=['GET', 'POST'])
@@ -228,47 +237,117 @@ def admin():
     
     conn = get_db()
     
-    if request.method == 'POST':
-        open_date = request.form.get('open_date')
-        overtime_date = request.form.get('overtime_date')
-        start_time = request.form.get('start_time')
-        end_time = request.form.get('end_time')
-        is_open = 1 if request.form.get('is_open') else 0
+    # 添加新批次
+    if request.method == 'POST' and 'action' in request.form:
+        action = request.form['action']
         
-        conn.execute('''UPDATE settings SET 
-                       open_date = ?, overtime_date = ?, 
-                       start_time = ?, end_time = ?, is_open = ?
-                       WHERE id = 1''',
-                    (open_date, overtime_date, start_time, end_time, is_open))
+        if action == 'add':
+            name = request.form.get('name')
+            dates_input = request.form.get('dates', '[]')
+            if name and dates_input:
+                try:
+                    dates = json.loads(dates_input)
+                    if dates:
+                        dates_json = json.dumps(dates)
+                        conn.execute('INSERT INTO overtime_batches (name, dates) VALUES (?, ?)', (name, dates_json))
+                        flash('加班批次已创建')
+                except:
+                    flash('日期格式错误')
+        
+        elif action == 'toggle':
+            batch_id = request.form.get('batch_id')
+            conn.execute('UPDATE overtime_batches SET is_open = NOT is_open WHERE id = ?', (batch_id,))
+            flash('状态已更新')
+        
+        elif action == 'delete':
+            batch_id = request.form.get('batch_id')
+            # 先删除相关申请
+            conn.execute('DELETE FROM applications WHERE batch_id = ?', (batch_id,))
+            conn.execute('DELETE FROM overtime_batches WHERE id = ?', (batch_id,))
+            flash('加班批次已删除')
+        
+        elif action == 'update':
+            batch_id = request.form.get('batch_id')
+            name = request.form.get('name')
+            dates_input = request.form.get('dates', '')
+            if name and dates_input:
+                # 解析逗号分隔的日期
+                dates = [d.strip() for d in dates_input.split(',') if d.strip()]
+                dates = [d.strip('[]"') for d in dates]  # 清理可能的JSON格式
+                if dates:
+                    dates_json = json.dumps(dates)
+                    conn.execute('UPDATE overtime_batches SET name = ?, dates = ? WHERE id = ?', 
+                               (name, dates_json, batch_id))
+                    flash('加班批次已更新')
+        
         conn.commit()
-        flash('设置已更新')
     
-    settings = conn.execute('SELECT * FROM settings WHERE id = 1').fetchone()
-    applications = conn.execute('''SELECT a.*, u.name, u.rank 
+    batches = conn.execute('SELECT * FROM overtime_batches ORDER BY created_at DESC').fetchall()
+    applications = conn.execute('''SELECT a.*, u.name, u.rank, b.name as batch_name
                                    FROM applications a 
-                                   JOIN users u ON a.user_id = u.id 
-                                   ORDER BY a.overtime_date DESC, u.rank''').fetchall()
+                                   JOIN users u ON a.user_id = u.id
+                                   JOIN overtime_batches b ON a.batch_id = b.id
+                                   ORDER BY b.id, u.rank, u.name''').fetchall()
     
-    return render_template('admin.html', settings=settings, applications=applications)
+    return render_template('admin.html', batches=batches, applications=applications)
 
-# 获取今日统计
-@app.route('/today_stats')
-def today_stats():
+# 个人中心
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
     conn = get_db()
-    settings = conn.execute('SELECT overtime_date FROM settings WHERE id = 1').fetchone()
     
-    if settings and settings['overtime_date']:
-        applications = conn.execute('''SELECT u.name, u.rank, a.reason, a.work_content
-                                       FROM applications a 
-                                       JOIN users u ON a.user_id = u.id 
-                                       WHERE a.overtime_date = ?''',
-                                   (settings['overtime_date'],)).fetchall()
-        return {'applications': [dict(a) for a in applications]}
+    if request.method == 'POST':
+        # 修改密码
+        old_password = request.form.get('old_password')
+        new_password = request.form.get('new_password')
+        
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        
+        if user['password'] != old_password:
+            flash('原密码错误')
+        elif new_password:
+            conn.execute('UPDATE users SET password = ? WHERE id = ?', (new_password, session['user_id']))
+            conn.commit()
+            flash('密码修改成功')
     
-    return {'applications': []}
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    return render_template('profile.html', user=user)
+
+# 批量创建员工（领导）
+@app.route('/batch_create', methods=['GET', 'POST'])
+def batch_create():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return redirect(url_for('login'))
+    
+    conn = get_db()
+    message = ''
+    
+    if request.method == 'POST':
+        users_text = request.form.get('users_text', '')
+        # 格式：用户名,密码,姓名,职级 每行一个
+        lines = users_text.strip().split('\n')
+        success_count = 0
+        error_count = 0
+        
+        for line in lines:
+            parts = [p.strip() for p in line.split(',')]
+            if len(parts) >= 4:
+                username, password, name, rank = parts[0], parts[1], parts[2], parts[3]
+                try:
+                    conn.execute('INSERT INTO users (username, password, name, rank) VALUES (?, ?, ?, ?)',
+                               (username, password, name, rank))
+                    success_count += 1
+                except:
+                    error_count += 1
+        
+        conn.commit()
+        message = f'成功创建 {success_count} 个账号，{error_count} 个失败'
+    
+    return render_template('batch_create.html', message=message)
 
 if __name__ == '__main__':
+    init_db()
     app.run(host='0.0.0.0', port=5001, debug=True)

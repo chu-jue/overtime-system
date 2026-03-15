@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量创建员工 - 加班审批系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 加班审批系统</h1>
+            <div class="user-info">
+                <span>领导 {{ session['name'] }}</span>
+                <a href="{{ url_for('index') }}" class="btn-small">📝 申请</a>
+                <a href="{{ url_for('stats') }}" class="btn-small">📊 统计</a>
+                <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
+                <a href="{{ url_for('logout') }}" class="btn-small">退出</a>
+            </div>
+        </header>
+        
+        {% if message %}
+        <div class="alert">{{ message }}</div>
+        {% endif %}
+        
+        <div class="card">
+            <h2>👥 批量创建员工账号</h2>
+            
+            <form method="POST">
+                <div class="form-group">
+                    <label>员工信息（每行一个，格式：用户名,密码,姓名,职级）</label>
+                    <textarea name="users_text" rows="15" required placeholder="例如：
+zhangsan,123456,张三,CL1
+lisi,123456,李四,CL2
+wangwu,123456,王五,CL3"></textarea>
+                    <p class="hint">每行格式：用户名,密码,姓名,职级</p>
+                </div>
+                <button type="submit" class="btn">批量创建</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h2>📋 职级说明</h2>
+            <p>CL1, CL2, CL3, CL4, CL5, CL6, CL7, CL8</p>
+        </div>
+    </div>
+</body>
+</html>

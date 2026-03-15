@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - 加班审批系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 加班审批系统</h1>
+            <div class="user-info">
+                <a href="{{ url_for('index') }}" class="btn-small">📝 申请</a>
+                <a href="{{ url_for('stats') }}" class="btn-small">📊 统计</a>
+                {% if session.get('is_admin') %}
+                    <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
+                    <a href="{{ url_for('batch_create') }}" class="btn-small">👥 批量创建</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn-small">退出</a>
+            </div>
+        </header>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert">{{ messages[0] }}</div>
+            {% endif %}
+        {% endwith %}
+        
+        <div class="card">
+            <h2>👤 个人中心</h2>
+            
+            <div class="info-box">
+                <p><strong>用户名：</strong>{{ user.username }}</p>
+                <p><strong>姓名：</strong>{{ user.name }}</p>
+                <p><strong>职级：</strong>{{ user.rank }}</p>
+            </div>
+            
+            <h3>🔐 修改密码</h3>
+            <form method="POST">
+                <div class="form-group">
+                    <label>原密码</label>
+                    <input type="password" name="old_password" required>
+                </div>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" name="new_password" required>
+                </div>
+                <button type="submit" class="btn">修改密码</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

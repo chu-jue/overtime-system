@@ -5,6 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理后台 - 加班审批系统</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .date-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .date-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #e3f2fd;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .date-item .remove-date {
+            color: #f44336;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -12,56 +34,135 @@
             <h1>🏢 加班审批系统</h1>
             <div class="user-info">
                 <span>领导 {{ session['name'] }}</span>
+                <a href="{{ url_for('profile') }}" class="btn-small">👤 个人</a>
                 <a href="{{ url_for('index') }}" class="btn-small">📝 申请</a>
                 <a href="{{ url_for('stats') }}" class="btn-small">📊 统计</a>
                 <a href="{{ url_for('logout') }}" class="btn-small">退出</a>
             </div>
         </header>
         
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert">{{ messages[0] }}</div>
+            {% endif %}
+        {% endwith %}
+        
+        <!-- 添加新批次 -->
         <div class="card">
-            <h2>⚙️ 系统设置</h2>
-            
-            {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                    <div class="alert">{{ messages[0] }}</div>
-                {% endif %}
-            {% endwith %}
-            
-            <form method="POST">
+            <h2>➕ 创建新加班批次</h2>
+            <form method="POST" id="addBatchForm">
+                <input type="hidden" name="action" value="add">
                 <div class="form-group">
-                    <label>开放日期（哪天开放申请）</label>
-                    <input type="date" name="open_date" value="{{ settings.open_date or '' }}">
+                    <label>批次名称（如：周末加班、春节加班）</label>
+                    <input type="text" name="name" required placeholder="请输入批次名称">
                 </div>
                 <div class="form-group">
-                    <label>加班日期（申请的是哪一天加班）</label>
-                    <input type="date" name="overtime_date" value="{{ settings.overtime_date or '' }}" required>
+                    <label>开放日期</label>
+                    <div style="display: flex; gap: 10px; margin: 10px 0;">
+                        <input type="date" id="datePicker">
+                        <button type="button" class="btn-small" onclick="addDate()">➕ 添加日期</button>
+                    </div>
+                    <div class="date-items" id="dateList"></div>
+                    <input type="hidden" name="dates" id="datesInput">
+                    <p class="hint">点击"添加日期"按钮添加允许加班的日期</p>
                 </div>
-                <div class="form-group">
-                    <label>申请开始时间</label>
-                    <input type="time" name="start_time" value="{{ settings.start_time or '' }}">
-                </div>
-                <div class="form-group">
-                    <label>申请结束时间</label>
-                    <input type="time" name="end_time" value="{{ settings.end_time or '' }}">
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" name="is_open" {% if settings.is_open %}checked{% endif %}>
-                        开放申请通道
-                    </label>
-                </div>
-                <button type="submit" class="btn">保存设置</button>
+                <button type="submit" class="btn">创建批次</button>
             </form>
         </div>
         
+        <script>
+            let dates = [];
+            
+            function addDate() {
+                const picker = document.getElementById('datePicker');
+                const date = picker.value;
+                if (date && !dates.includes(date)) {
+                    dates.push(date);
+                    renderDates();
+                    picker.value = '';
+                }
+            }
+            
+            function removeDate(date) {
+                dates = dates.filter(d => d !== date);
+                renderDates();
+            }
+            
+            function renderDates() {
+                const list = document.getElementById('dateList');
+                const input = document.getElementById('datesInput');
+                list.innerHTML = dates.map(d => 
+                    '<span class="date-item">' + d + ' <span class="remove-date" onclick="removeDate(\'' + d + '\')">×</span></span>'
+                ).join('');
+                input.value = JSON.stringify(dates);
+            }
+            
+            document.getElementById('addBatchForm').onsubmit = function() {
+                if (dates.length === 0) {
+                    alert('请至少添加一个日期');
+                    return false;
+                }
+            };
+        </script>
+        
+        <!-- 批次列表 -->
         <div class="card">
-            <h2>📋 所有申请记录</h2>
+            <h2>📋 加班批次管理</h2>
             <table>
                 <thead>
                     <tr>
+                        <th>ID</th>
+                        <th>批次名称</th>
+                        <th>开放日期</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batch in batches %}
+                    <tr>
+                        <td>{{ batch.id }}</td>
+                        <td>{{ batch.name }}</td>
+                        <td>{{ batch.dates }}</td>
+                        <td>
+                            {% if batch.is_open %}
+                            <span class="badge badge-open">开放</span>
+                            {% else %}
+                            <span class="badge badge-closed">关闭</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="action" value="toggle">
+                                <input type="hidden" name="batch_id" value="{{ batch.id }}">
+                                <button type="submit" class="btn-small">{{ '关闭' if batch.is_open else '开放' }}</button>
+                            </form>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('确定删除？此操作会删除所有相关申请');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="batch_id" value="{{ batch.id }}">
+                                <button type="submit" class="btn-small btn-danger">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">暂无加班批次</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 申请记录 -->
+        <div class="card">
+            <h2>📝 员工申请记录</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>批次</th>
                         <th>职级</th>
                         <th>姓名</th>
-                        <th>加班日期</th>
+                        <th>选择日期</th>
                         <th>理由</th>
                         <th>工作内容</th>
                         <th>提交时间</th>
@@ -70,16 +171,17 @@
                 <tbody>
                     {% for app in applications %}
                     <tr>
+                        <td>{{ app.batch_name }}</td>
                         <td>{{ app.rank }}</td>
                         <td>{{ app.name }}</td>
-                        <td>{{ app.overtime_date }}</td>
+                        <td>{{ app.selected_dates }}</td>
                         <td>{{ app.reason }}</td>
                         <td>{{ app.work_content }}</td>
                         <td>{{ app.created_at }}</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6">暂无申请记录</td>
+                        <td colspan="7">暂无申请记录</td>
                     </tr>
                     {% endfor %}
                 </tbody>

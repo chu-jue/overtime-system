@@ -12,6 +12,7 @@
             <h1>🏢 加班审批系统</h1>
             <div class="user-info">
                 <span>{{ session['name'] }} ({{ session['rank'] }})</span>
+                <a href="{{ url_for('profile') }}" class="btn-small">👤 个人</a>
                 <a href="{{ url_for('index') }}" class="btn-small">📝 申请</a>
                 {% if session.get('is_admin') %}
                     <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
@@ -23,38 +24,42 @@
         <div class="card">
             <h2>📊 加班统计</h2>
             
-            {% if settings and settings.overtime_date %}
-                <div class="info-box">
-                    <p>📅 统计日期：<strong>{{ settings.overtime_date }}</strong></p>
-                    <p>📈 共 {{ applications|length }} 人加班</p>
+            {% if applications %}
+                {% for batch in batches %}
+                <div class="batch-section">
+                    <h3>📋 {{ batch.name }}</h3>
+                    <p class="hint">开放日期: {{ batch.dates }}</p>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>职级</th>
+                                <th>姓名</th>
+                                <th>选择日期</th>
+                                <th>理由</th>
+                                <th>工作内容</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for app in applications if app.batch_name == batch.name %}
+                            <tr>
+                                <td>{{ app.rank }}</td>
+                                <td>{{ app.name }}</td>
+                                <td>{{ app.selected_dates }}</td>
+                                <td>{{ app.reason }}</td>
+                                <td>{{ app.work_content }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
+                {% endfor %}
                 
-                <table>
-                    <thead>
-                        <tr>
-                            <th>职级</th>
-                            <th>姓名</th>
-                            <th>加班理由</th>
-                            <th>工作内容</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for app in applications %}
-                        <tr>
-                            <td>{{ app.rank }}</td>
-                            <td>{{ app.name }}</td>
-                            <td>{{ app.reason }}</td>
-                            <td>{{ app.work_content }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="4">暂无加班申请</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="info-box">
+                    <p>📈 共 {{ applications|length }} 人提交申请</p>
+                </div>
             {% else %}
-                <p>暂未设置加班日期</p>
+                <p>暂无申请记录</p>
             {% endif %}
         </div>
     </div>

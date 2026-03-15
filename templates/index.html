@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>加班申请 - 加班审批系统</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .date-chip {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .date-chip:hover {
+            border-color: #667eea;
+            background: #f0f7ff;
+        }
+        .date-chip.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -12,6 +33,7 @@
             <h1>🏢 加班审批系统</h1>
             <div class="user-info">
                 <span>{{ session['name'] }} ({{ session['rank'] }})</span>
+                <a href="{{ url_for('profile') }}" class="btn-small">👤 个人</a>
                 <a href="{{ url_for('stats') }}" class="btn-small">📊 统计</a>
                 {% if session.get('is_admin') %}
                     <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
@@ -20,56 +42,131 @@
             </div>
         </header>
         
-        <div class="card">
-            <h2>📝 加班申请</h2>
-            
-            {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                    <div class="alert">{{ messages[0] }}</div>
-                {% endif %}
-            {% endwith %}
-            
-            {% if settings and settings.is_open %}
-                <div class="info-box">
-                    <p>📅 <strong>加班日期：</strong>{{ settings.overtime_date }}</p>
-                    {% if settings.start_time and settings.end_time %}
-                        <p>⏰ <strong>申请时间：</strong>{{ settings.start_time }} - {{ settings.end_time }}</p>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert">{{ messages[0] }}</div>
+            {% endif %}
+        {% endwith %}
+        
+        {% if batches %}
+            {% for batch in batches %}
+            <div class="card">
+                <div class="batch-header">
+                    <h2>📋 {{ batch.name }}</h2>
+                    {% if batch.is_open %}
+                    <span class="badge badge-open">开放中</span>
+                    {% else %}
+                    <span class="badge badge-closed">已关闭</span>
                     {% endif %}
                 </div>
                 
-                {% if application %}
+                {% set batch_id_str = batch.id|string %}
+                {% if batch_id_str in user_applications %}
                     <div class="submitted-box">
                         <h3>✅ 已提交（可修改）</h3>
-                        <p><strong>加班日期：</strong>{{ application.overtime_date }}</p>
-                        <p><strong>加班理由：</strong>{{ application.reason }}</p>
-                        <p><strong>工作内容：</strong>{{ application.work_content }}</p>
+                        <p><strong>已选日期：</strong>{{ user_applications[batch_id_str].selected_dates }}</p>
+                        <p><strong>加班理由：</strong>{{ user_applications[batch_id_str].reason }}</p>
+                        <p><strong>工作内容：</strong>{{ user_applications[batch_id_str].work_content }}</p>
                     </div>
                 {% endif %}
                 
+                {% if batch.is_open %}
                 <form method="POST" action="{{ url_for('apply') }}">
+                    <input type="hidden" name="batch_id" value="{{ batch.id }}">
+                    <input type="hidden" name="dates" id="dates_{{ batch.id }}">
+                    
                     <div class="form-group">
-                        <label>加班日期</label>
-                        <input type="date" name="overtime_date" value="{{ settings.overtime_date }}" required>
+                        <label>点击选择加班日期（可多选）</label>
+                        <div id="dateContainer_{{ batch.id }}">
+                            {% for d in batch.dates %}
+                            <span class="date-chip {% if batch_id_str in user_applications and d in user_applications[batch_id_str].selected_dates %}selected{% endif %}" 
+                                  onclick="toggleDate({{ batch.id }}, '{{ d }}')" 
+                                  id="date_{{ batch.id }}_{{ d }}">{{ d }}</span>
+                            {% endfor %}
+                        </div>
+                        <p class="hint">已选: <span id="selected_{{ batch.id }}">{% if batch_id_str in user_applications %}{{ user_applications[batch_id_str].selected_dates }}{% else %}无{% endif %}</span></p>
                     </div>
+                    
                     <div class="form-group">
                         <label>加班理由</label>
-                        <textarea name="reason" rows="3" required placeholder="请输入加班理由">{{ application.reason if application else '' }}</textarea>
+                        <textarea name="reason" rows="2" required placeholder="请输入加班理由">{{ user_applications[batch_id_str].reason if batch_id_str in user_applications else '' }}</textarea>
                     </div>
+                    
                     <div class="form-group">
                         <label>工作内容</label>
-                        <textarea name="work_content" rows="4" required placeholder="请详细描述需要完成的工作">{{ application.work_content if application else '' }}</textarea>
+                        <textarea name="work_content" rows="3" required placeholder="请详细描述需要完成的工作">{{ user_applications[batch_id_str].work_content if batch_id_str in user_applications else '' }}</textarea>
                     </div>
-                    <button type="submit" class="btn">
-                        {{ '更新申请' if application else '提交申请' }}
+                    
+                    <button type="submit" class="btn" onclick="return submitForm({{ batch.id }})">
+                        {{ '更新申请' if batch_id_str in user_applications else '提交申请' }}
                     </button>
                 </form>
-            {% else %}
+                {% else %}
                 <div class="closed-box">
-                    <p>❌ 申请尚未开放</p>
-                    <p>请等待领导开放申请通道</p>
+                    <p>❌ 该批次已关闭</p>
                 </div>
-            {% endif %}
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="card">
+            <div class="closed-box">
+                <p>❌ 暂无开放的加班批次</p>
+                <p>请等待领导开放加班批次</p>
+            </div>
         </div>
+        {% endif %}
+        
+        <script>
+            let selectedDates = {};
+            
+            {% for batch in batches %}
+            selectedDates[{{ batch.id }}] = [];
+            {% set batch_id_str = batch.id|string %}
+            {% if batch_id_str in user_applications %}
+                {% set app = user_applications[batch_id_str] %}
+                selectedDates[{{ batch.id }}] = {{ app.selected_dates | safe }};
+                {% endif %}
+            {% endfor %}
+            
+            function toggleDate(batchId, date) {
+                const index = selectedDates[batchId].indexOf(date);
+                const chip = document.getElementById('date_' + batchId + '_' + date);
+                
+                if (index > -1) {
+                    selectedDates[batchId].splice(index, 1);
+                    chip.classList.remove('selected');
+                } else {
+                    selectedDates[batchId].push(date);
+                    chip.classList.add('selected');
+                }
+                
+                updateDisplay(batchId);
+            }
+            
+            function updateDisplay(batchId) {
+                const display = document.getElementById('selected_' + batchId);
+                if (selectedDates[batchId].length === 0) {
+                    display.textContent = '无';
+                } else {
+                    display.textContent = selectedDates[batchId].join(', ');
+                }
+            }
+            
+            function submitForm(batchId) {
+                if (selectedDates[batchId].length === 0) {
+                    alert('请至少选择一个加班日期');
+                    return false;
+                }
+                document.getElementById('dates_' + batchId).value = JSON.stringify(selectedDates[batchId]);
+                return true;
+            }
+            
+            // 初始化显示
+            {% for batch in batches %}
+            updateDisplay({{ batch.id }});
+            {% endfor %}
+        </script>
     </div>
 </body>
 </html>
