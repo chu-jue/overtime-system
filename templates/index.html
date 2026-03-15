@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加班申请 - 加班审批系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 加班审批系统</h1>
+            <div class="user-info">
+                <span>{{ session['name'] }} ({{ session['rank'] }})</span>
+                <a href="{{ url_for('stats') }})" class="btn-small">📊 统计</a>
+                {% if session.get('is_admin') %}
+                    <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn-small">退出</a>
+            </div>
+        </header>
+        
+        <div class="card">
+            <h2>📝 加班申请</h2>
+            
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert">{{ messages[0] }}</div>
+                {% endif %}
+            {% endwith %}
+            
+            {% if settings and settings.is_open %}
+                <div class="info-box">
+                    <p>📅 <strong>加班日期：</strong>{{ settings.overtime_date }}</p>
+                    {% if settings.start_time and settings.end_time %}
+                        <p>⏰ <strong>申请时间：</strong>{{ settings.start_time }} - {{ settings.end_time }}</p>
+                    {% endif %}
+                </div>
+                
+                {% if application %}
+                    <div class="submitted-box">
+                        <h3>✅ 已提交（可修改）</h3>
+                        <p><strong>加班日期：</strong>{{ application.overtime_date }}</p>
+                        <p><strong>加班理由：</strong>{{ application.reason }}</p>
+                        <p><strong>工作内容：</strong>{{ application.work_content }}</p>
+                    </div>
+                {% endif %}
+                
+                <form method="POST" action="{{ url_for('apply') }}">
+                    <div class="form-group">
+                        <label>加班日期</label>
+                        <input type="date" name="overtime_date" value="{{ settings.overtime_date }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>加班理由</label>
+                        <textarea name="reason" rows="3" required placeholder="请输入加班理由">{{ application.reason if application else '' }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>工作内容</label>
+                        <textarea name="work_content" rows="4" required placeholder="请详细描述需要完成的工作">{{ application.work_content if application else '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn">
+                        {{ '更新申请' if application else '提交申请' }}
+                    </button>
+                </form>
+            {% else %}
+                <div class="closed-box">
+                    <p>❌ 申请尚未开放</p>
+                    <p>请等待领导开放申请通道</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

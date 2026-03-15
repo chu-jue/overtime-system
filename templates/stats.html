@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加班统计 - 加班审批系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 加班审批系统</h1>
+            <div class="user-info">
+                <span>{{ session['name'] }} ({{ session['rank'] }})</span>
+                <a href="{{ url_for('index') }}" class="btn-small">📝 申请</a>
+                {% if session.get('is_admin') %}
+                    <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn-small">退出</a>
+            </div>
+        </header>
+        
+        <div class="card">
+            <h2>📊 加班统计</h2>
+            
+            {% if settings and settings.overtime_date %}
+                <div class="info-box">
+                    <p>📅 统计日期：<strong>{{ settings.overtime_date }}</strong></p>
+                    <p>📈 共 {{ applications|length }} 人加班</p>
+                </div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>职级</th>
+                            <th>姓名</th>
+                            <th>加班理由</th>
+                            <th>工作内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for app in applications %}
+                        <tr>
+                            <td>{{ app.rank }}</td>
+                            <td>{{ app.name }}</td>
+                            <td>{{ app.reason }}</td>
+                            <td>{{ app.work_content }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4">暂无加班申请</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>暂未设置加班日期</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

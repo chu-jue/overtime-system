@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 加班审批系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 加班审批系统</h1>
+            <div class="user-info">
+                <span>领导 {{ session['name'] }}</span>
+                <a href="{{ url_for('index') }}" class="btn-small">📝 申请</a>
+                <a href="{{ url_for('stats') }}" class="btn-small">📊 统计</a>
+                <a href="{{ url_for('logout') }}" class="btn-small">退出</a>
+            </div>
+        </header>
+        
+        <div class="card">
+            <h2>⚙️ 系统设置</h2>
+            
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert">{{ messages[0] }}</div>
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST">
+                <div class="form-group">
+                    <label>开放日期（哪天开放申请）</label>
+                    <input type="date" name="open_date" value="{{ settings.open_date or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>加班日期（申请的是哪一天加班）</label>
+                    <input type="date" name="overtime_date" value="{{ settings.overtime_date or '' }}" required>
+                </div>
+                <div class="form-group">
+                    <label>申请开始时间</label>
+                    <input type="time" name="start_time" value="{{ settings.start_time or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>申请结束时间</label>
+                    <input type="time" name="end_time" value="{{ settings.end_time or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="is_open" {% if settings.is_open %}checked{% endif %}>
+                        开放申请通道
+                    </label>
+                </div>
+                <button type="submit" class="btn">保存设置</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h2>📋 所有申请记录</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>职级</th>
+                        <th>姓名</th>
+                        <th>加班日期</th>
+                        <th>理由</th>
+                        <th>工作内容</th>
+                        <th>提交时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in applications %}
+                    <tr>
+                        <td>{{ app.rank }}</td>
+                        <td>{{ app.name }}</td>
+                        <td>{{ app.overtime_date }}</td>
+                        <td>{{ app.reason }}</td>
+                        <td>{{ app.work_content }}</td>
+                        <td>{{ app.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">暂无申请记录</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

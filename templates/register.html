@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 加班审批系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 加班审批系统</h1>
+        <div class="card">
+            <h2>员工注册</h2>
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert">{{ messages[0] }}</div>
+                {% endif %}
+            {% endwith %}
+            <form method="POST">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label>姓名</label>
+                    <input type="text" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label>职级</label>
+                    <select name="rank" required>
+                        <option value="">请选择职级</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                        <option value="P3">P3</option>
+                        <option value="P4">P4</option>
+                        <option value="P5">P5</option>
+                        <option value="P6">P6</option>
+                        <option value="P7">P7</option>
+                        <option value="L6">L6</option>
+                        <option value="L7">L7</option>
+                        <option value="L8">L8</option>
+                        <option value="L9">L9</option>
+                        <option value="L10">L10</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">注册</button>
+            </form>
+            <p class="link">已有账号？<a href="{{ url_for('login') }}">立即登录</a></p>
+        </div>
+    </div>
+</body>
+</html>
