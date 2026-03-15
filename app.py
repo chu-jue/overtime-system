@@ -163,12 +163,16 @@ def apply():
     
     # 检查是否在申请时间内
     now = datetime.now().time()
-    if settings['start_time'] and now < settings['start_time']:
-        flash('申请时间未到')
-        return redirect(url_for('index'))
-    if settings['end_time'] and now > settings['end_time']:
-        flash('申请时间已过')
-        return redirect(url_for('index'))
+    if settings['start_time'] and settings['start_time'] != '':
+        start = datetime.strptime(settings['start_time'], '%H:%M').time()
+        if now < start:
+            flash('申请时间未到')
+            return redirect(url_for('index'))
+    if settings['end_time'] and settings['end_time'] != '':
+        end = datetime.strptime(settings['end_time'], '%H:%M').time()
+        if now > end:
+            flash('申请时间已过')
+            return redirect(url_for('index'))
     
     # 检查今天是否已提交
     today = date.today()
