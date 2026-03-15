@@ -12,7 +12,7 @@
             <h1>🏢 加班审批系统</h1>
             <div class="user-info">
                 <span>{{ session['name'] }} ({{ session['rank'] }})</span>
-                <a href="{{ url_for('stats') }})" class="btn-small">📊 统计</a>
+                <a href="{{ url_for('stats') }}" class="btn-small">📊 统计</a>
                 {% if session.get('is_admin') %}
                     <a href="{{ url_for('admin') }}" class="btn-small">⚙️ 管理</a>
                 {% endif %}
