@@ -140,10 +140,13 @@ def index():
                                     FROM applications a 
                                     JOIN overtime_batches b ON a.batch_id = b.id
                                     ORDER BY a.created_at DESC''').fetchall()
+    applications_list = []
     for app in applications:
-        app['selected_dates'] = json.loads(app['selected_dates'])
+        app_dict = dict(app)
+        app_dict['selected_dates'] = json.loads(app_dict['selected_dates'])
+        applications_list.append(app_dict)
     
-    return render_template('index.html', batches=batches, applications=applications)
+    return render_template('index.html', batches=batches, applications=applications_list)
 
 # 提交/修改申请
 @app.route('/apply', methods=['POST'])
