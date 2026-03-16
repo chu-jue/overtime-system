@@ -295,9 +295,8 @@ def stats():
     batches = conn.execute('SELECT * FROM overtime_batches WHERE is_open = 1').fetchall()
     
     # 获取所有申请
-    all_applications = conn.execute('''SELECT a.*, u.name, u.rank, b.name as batch_name
+    all_applications = conn.execute('''SELECT a.*, b.name as batch_name
                                        FROM applications a 
-                                       JOIN users u ON a.user_id = u.id
                                        JOIN overtime_batches b ON a.batch_id = b.id
                                        ORDER BY b.id, a.created_at''').fetchall()
     
@@ -367,11 +366,10 @@ def admin():
         conn.commit()
     
     batches = conn.execute('SELECT * FROM overtime_batches ORDER BY created_at DESC').fetchall()
-    applications = conn.execute('''SELECT a.*, u.name, u.rank, b.name as batch_name
+    applications = conn.execute('''SELECT a.*, b.name as batch_name
                                    FROM applications a 
-                                   JOIN users u ON a.user_id = u.id
                                    JOIN overtime_batches b ON a.batch_id = b.id
-                                   ORDER BY b.id, u.rank, u.name''').fetchall()
+                                   ORDER BY b.id, a.rank, a.name''').fetchall()
     
     # 获取所有用户
     users = conn.execute('SELECT * FROM users ORDER BY is_admin DESC, id ASC').fetchall()
