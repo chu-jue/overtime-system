@@ -280,6 +280,16 @@ def admin():
                                (name, dates_json, batch_id))
                     flash('加班批次已更新')
         
+        elif action == 'update_user_role':
+            user_id = request.form.get('user_id')
+            is_admin = request.form.get('is_admin')
+            # 防止管理员把自己降级
+            if int(user_id) == session['user_id'] and int(is_admin) == 0:
+                flash('不能将自己降为员工')
+            else:
+                conn.execute('UPDATE users SET is_admin = ? WHERE id = ?', (is_admin, user_id))
+                flash('用户角色已更新')
+        
         conn.commit()
     
     batches = conn.execute('SELECT * FROM overtime_batches ORDER BY created_at DESC').fetchall()
@@ -289,7 +299,10 @@ def admin():
                                    JOIN overtime_batches b ON a.batch_id = b.id
                                    ORDER BY b.id, u.rank, u.name''').fetchall()
     
-    return render_template('admin.html', batches=batches, applications=applications)
+    # 获取所有用户
+    users = conn.execute('SELECT * FROM users ORDER BY is_admin DESC, id ASC').fetchall()
+    
+    return render_template('admin.html', batches=batches, applications=applications, users=users)
 
 # 个人中心
 @app.route('/profile', methods=['GET', 'POST'])
@@ -300,6 +313,20 @@ def profile():
     conn = get_db()
     
     if request.method == 'POST':
+        # 修改姓名
+        new_name = request.form.get('new_name')
+        if new_name:
+            conn.execute('UPDATE users SET name = ? WHERE id = ?', (new_name, session['user_id']))
+            session['name'] = new_name
+            flash('姓名修改成功')
+        
+        # 修改职级
+        new_rank = request.form.get('new_rank')
+        if new_rank:
+            conn.execute('UPDATE users SET rank = ? WHERE id = ?', (new_rank, session['user_id']))
+            session['rank'] = new_rank
+            flash('职级修改成功')
+        
         # 修改密码
         old_password = request.form.get('old_password')
         new_password = request.form.get('new_password')
@@ -310,8 +337,9 @@ def profile():
             flash('原密码错误')
         elif new_password:
             conn.execute('UPDATE users SET password = ? WHERE id = ?', (new_password, session['user_id']))
-            conn.commit()
             flash('密码修改成功')
+        
+        conn.commit()
     
     user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     return render_template('profile.html', user=user)

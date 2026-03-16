@@ -153,6 +153,54 @@
             </table>
         </div>
         
+        <!-- 用户管理 -->
+        <div class="card">
+            <h2>👥 用户管理</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>姓名</th>
+                        <th>职级</th>
+                        <th>角色</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td>{{ u.username }}</td>
+                        <td>{{ u.name }}</td>
+                        <td>{{ u.rank }}</td>
+                        <td>
+                            {% if u.is_admin %}
+                            <span class="badge badge-open">领导</span>
+                            {% else %}
+                            <span class="badge badge-closed">员工</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="action" value="update_user_role">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <select name="is_admin" onchange="this.form.submit()" style="padding: 4px;">
+                                    <option value="0" {% if not u.is_admin %}selected{% endif %}>员工</option>
+                                    <option value="1" {% if u.is_admin %}selected{% endif %}>领导</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">暂无用户</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
         <!-- 申请记录 -->
         <div class="card">
             <h2>📝 员工申请记录</h2>

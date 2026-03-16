@@ -36,6 +36,24 @@
                 <p><strong>职级：</strong>{{ user.rank }}</p>
             </div>
             
+            <h3>📋 修改姓名</h3>
+            <form method="POST">
+                <div class="form-group">
+                    <label>新姓名</label>
+                    <input type="text" name="new_name" placeholder="请输入新姓名" required>
+                </div>
+                <button type="submit" class="btn">修改姓名</button>
+            </form>
+            
+            <h3>📋 修改职级</h3>
+            <form method="POST">
+                <div class="form-group">
+                    <label>新职级</label>
+                    <input type="text" name="new_rank" placeholder="例如: CL9, CL10, CL11" required>
+                </div>
+                <button type="submit" class="btn">修改职级</button>
+            </form>
+            
             <h3>🔐 修改密码</h3>
             <form method="POST">
                 <div class="form-group">
