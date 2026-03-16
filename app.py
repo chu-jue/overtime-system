@@ -5,7 +5,8 @@ import json
 
 app = Flask(__name__)
 app.secret_key = 'overtime-system-secret-key-2024'
-DB_PATH = '/root/.openclaw/workspace/overtime-system/database.db'
+import os
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database.db')
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
