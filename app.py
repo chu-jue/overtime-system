@@ -1,7 +1,14 @@
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, session, flash, g
+from flask import Flask, render_template, request, redirect, url_for, session, flash, g, make_response
 from datetime import datetime, date, timedelta
 import json
+from io import BytesIO
+
+try:
+    from openpyxl import Workbook
+    EXCEL_AVAILABLE = True
+except ImportError:
+    EXCEL_AVAILABLE = False
 
 app = Flask(__name__)
 app.secret_key = 'overtime-system-secret-key-2024'
@@ -49,8 +56,22 @@ def init_db():
     # 创建默认管理员
     c.execute("SELECT * FROM users WHERE username = 'admin'")
     if not c.fetchone():
-        c.execute("INSERT INTO users (username, password, name, rank, is_admin) VALUES (?, ?, ?, ?, ?)",
+        c.execute('INSERT INTO users (username, password, name, rank, is_admin) VALUES (?, ?, ?, ?, ?)',
                   ('admin', 'admin123', '领导', 'CL10', 1))
+    
+    # 配置表
+    c.execute('''CREATE TABLE IF NOT EXISTS config (
+        id INTEGER PRIMARY KEY,
+        group_name TEXT DEFAULT 'Group A',
+        part_name TEXT DEFAULT 'Part A',
+        dept_manager TEXT DEFAULT ''
+    )''')
+    
+    # 初始化配置
+    c.execute("SELECT * FROM config WHERE id = 1")
+    if not c.fetchone():
+        c.execute('INSERT INTO config (id, group_name, part_name, dept_manager) VALUES (1, ?, ?, ?)',
+                  ('Group A', 'Part A', ''))
     
     conn.commit()
     conn.close()
@@ -374,7 +395,114 @@ def admin():
     # 获取所有用户
     users = conn.execute('SELECT * FROM users ORDER BY is_admin DESC, id ASC').fetchall()
     
-    return render_template('admin.html', batches=batches, applications=applications, users=users)
+    # 获取配置
+    config = conn.execute('SELECT * FROM config WHERE id = 1').fetchone()
+    
+    return render_template('admin.html', batches=batches, applications=applications, users=users, config=config)
+
+# 更新配置
+@app.route('/update_config', methods=['POST'])
+def update_config():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return redirect(url_for('login'))
+    
+    group_name = request.form.get('group_name')
+    part_name = request.form.get('part_name')
+    dept_manager = request.form.get('dept_manager')
+    
+    conn = get_db()
+    conn.execute('UPDATE config SET group_name = ?, part_name = ?, dept_manager = ? WHERE id = 1',
+                 (group_name, part_name, dept_manager))
+    conn.commit()
+    flash('配置已更新')
+    return redirect(url_for('admin'))
+
+# 导出Excel
+@app.route('/export_excel')
+def export_excel():
+    if 'user_id' not in session or not session.get('is_admin'):
+        return redirect(url_for('login'))
+    
+    if not EXCEL_AVAILABLE:
+        flash('请安装 openpyxl 库: pip install openpyxl')
+        return redirect(url_for('admin'))
+    
+    conn = get_db()
+    
+    # 获取配置
+    config = conn.execute('SELECT * FROM config WHERE id = 1').fetchone()
+    group_name = config['group_name'] if config else 'Group A'
+    part_name = config['part_name'] if config else 'Part A'
+    dept_manager = config['dept_manager'] if config else ''
+    
+    # 获取所有申请
+    applications = conn.execute('''SELECT a.*, b.name as batch_name
+                                    FROM applications a 
+                                    JOIN overtime_batches b ON a.batch_id = b.id
+                                    ORDER BY a.created_at DESC''').fetchall()
+    
+    # 获取当月加班天数
+    current_month = datetime.now().strftime('%Y-%m')
+    
+    # 创建Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "加班申请"
+    
+    # 表头
+    headers = ['姓名', '职级', 'Group', 'Part', '部门长', '加班日期', '周末加班原因', 
+               '具体业务内容及所需时间', '周末已加班天数(当月)', '驻在员确认', '备注']
+    ws.append(headers)
+    
+    # 写入数据
+    for app in applications:
+        # 计算当月加班天数
+        app_dates = json.loads(app['selected_dates'])
+        month_days = [d for d in app_dates if d.startswith(current_month)]
+        days_count = len(month_days)
+        
+        # 合并日期
+        dates_str = ', '.join(app_dates)
+        
+        row = [
+            app['name'],
+            app['rank'],
+            group_name,
+            part_name,
+            dept_manager,
+            dates_str,
+            app['reason'],
+            app['work_content'],
+            days_count,
+            '',
+            ''
+        ]
+        ws.append(row)
+    
+    # 设置列宽
+    ws.column_dimensions['A'].width = 10
+    ws.column_dimensions['B'].width = 8
+    ws.column_dimensions['C'].width = 10
+    ws.column_dimensions['D'].width = 10
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 25
+    ws.column_dimensions['G'].width = 20
+    ws.column_dimensions['H'].width = 25
+    ws.column_dimensions['I'].width = 15
+    ws.column_dimensions['J'].width = 12
+    ws.column_dimensions['K'].width = 10
+    
+    # 保存到BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # 返回文件
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = f'attachment; filename=加班申请_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    
+    return response
 
 # 个人中心
 @app.route('/profile', methods=['GET', 'POST'])
