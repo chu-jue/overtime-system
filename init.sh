@@ -9,11 +9,12 @@ mkdir -p static
 # 检查并创建数据库
 if [ ! -f "database.db" ]; then
     echo "📦 创建数据库..."
-    python3 -c "
+    # 使用当前工作目录（假设在项目目录下运行）
+    python3 << 'PYEOF'
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database.db')
+DB_PATH = os.path.join(os.getcwd(), 'database.db')
 conn = sqlite3.connect(DB_PATH)
 c = conn.cursor()
 
