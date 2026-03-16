@@ -34,9 +34,11 @@ def init_db():
     # 员工申请表
     c.execute('''CREATE TABLE IF NOT EXISTS applications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
         batch_id INTEGER NOT NULL,
-        selected_dates TEXT NOT NULL,  -- JSON数组，员工选择的日期
+        name TEXT NOT NULL,
+        rank TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        selected_dates TEXT NOT NULL,
         reason TEXT NOT NULL,
         work_content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -121,10 +123,20 @@ def logout():
 # 首页 / 申请页面
 @app.route('/')
 def index():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
     conn = get_db()
+    
+    # 获取手机号查询
+    phone = request.args.get('phone', '')
+    my_applications = []
+    if phone:
+        my_applications = conn.execute('''SELECT a.*, b.name as batch_name
+                                          FROM applications a 
+                                          JOIN overtime_batches b ON a.batch_id = b.id
+                                          WHERE a.phone = ?
+                                          ORDER BY a.created_at DESC''', (phone,)).fetchall()
+        # 解析JSON日期
+        for app in my_applications:
+            app['selected_dates'] = json.loads(app['selected_dates'])
     
     # 获取所有开放的加班批次
     batches_raw = conn.execute('SELECT * FROM overtime_batches WHERE is_open = 1 ORDER BY created_at DESC').fetchall()
@@ -136,29 +148,27 @@ def index():
         batch['dates'] = json.loads(batch['dates'])
         batches.append(batch)
     
-    # 获取用户已提交的申请
-    user_applications = conn.execute(
-        'SELECT * FROM applications WHERE user_id = ?', 
-        (session['user_id'],)
-    ).fetchall()
+    # 如果是管理员，也显示所有申请
+    all_applications = []
+    if session.get('is_admin'):
+        all_applications = conn.execute('''SELECT a.*, b.name as batch_name
+                                            FROM applications a 
+                                            JOIN overtime_batches b ON a.batch_id = b.id
+                                            ORDER BY a.created_at DESC''').fetchall()
+        for app in all_applications:
+            app['selected_dates'] = json.loads(app['selected_dates'])
     
-    # 整理用户申请数据，按batch_id分组
-    user_apps_by_batch = {}
-    for app in user_applications:
-        app_dict = dict(app)
-        app_dict['selected_dates'] = json.loads(app_dict['selected_dates'])
-        user_apps_by_batch[str(app_dict['batch_id'])] = app_dict
-    
-    return render_template('index.html', batches=batches, user_applications=user_apps_by_batch)
+    return render_template('index.html', batches=batches, my_applications=my_applications, 
+                           phone=phone, all_applications=all_applications)
 
 # 提交/修改申请
 @app.route('/apply', methods=['POST'])
 def apply():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
     batch_id = request.form.get('batch_id')
-    dates_input = request.form.get('dates', '[]')  # 获取JSON字符串
+    name = request.form['name']
+    rank = request.form['rank']
+    phone = request.form['phone']
+    dates_input = request.form.get('dates', '[]')
     reason = request.form['reason']
     work_content = request.form['work_content']
     
@@ -187,27 +197,110 @@ def apply():
             flash(f'日期 {d} 不在允许范围内')
             return redirect(url_for('index'))
     
-    # 检查是否已存在申请
+    # 检查是否已存在申请（通过手机号和批次ID判断）
     existing = conn.execute(
-        'SELECT * FROM applications WHERE user_id = ? AND batch_id = ?',
-        (session['user_id'], batch_id)
+        'SELECT * FROM applications WHERE phone = ? AND batch_id = ?',
+        (phone, batch_id)
     ).fetchone()
     
     selected_dates_json = json.dumps(selected_dates)
     
     if existing:
         conn.execute('''UPDATE applications 
-                       SET selected_dates = ?, reason = ?, work_content = ?, updated_at = CURRENT_TIMESTAMP
-                       WHERE user_id = ? AND batch_id = ?''',
-                    (selected_dates_json, reason, work_content, session['user_id'], batch_id))
+                       SET name = ?, rank = ?, phone = ?, selected_dates = ?, reason = ?, work_content = ?, updated_at = CURRENT_TIMESTAMP
+                       WHERE phone = ? AND batch_id = ?''',
+                    (name, rank, phone, selected_dates_json, reason, work_content, phone, batch_id))
         flash('申请已更新')
     else:
-        conn.execute('''INSERT INTO applications (user_id, batch_id, selected_dates, reason, work_content)
-                       VALUES (?, ?, ?, ?, ?)''',
-                    (session['user_id'], batch_id, selected_dates_json, reason, work_content))
+        conn.execute('''INSERT INTO applications (batch_id, name, rank, phone, selected_dates, reason, work_content)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                    (batch_id, name, rank, phone, selected_dates_json, reason, work_content))
         flash('申请提交成功')
     
     conn.commit()
+    return redirect(url_for('index') + '?phone=' + phone)
+
+# 修改申请页面
+@app.route('/edit/<int:app_id>', methods=['GET', 'POST'])
+def edit_application(app_id):
+    conn = get_db()
+    
+    if request.method == 'POST':
+        name = request.form['name']
+        rank = request.form['rank']
+        phone = request.form['phone']
+        dates_input = request.form.get('dates', '[]')
+        reason = request.form['reason']
+        work_content = request.form['work_content']
+        
+        try:
+            selected_dates = json.loads(dates_input)
+        except:
+            selected_dates = request.form.getlist('dates')
+        
+        if not selected_dates:
+            flash('请至少选择一个加班日期')
+            return redirect(url_for('index'))
+        
+        # 检查日期是否在允许范围内
+        app = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
+        if not app:
+            flash('申请不存在')
+            return redirect(url_for('index'))
+        
+        batch = conn.execute('SELECT * FROM overtime_batches WHERE id = ?', (app['batch_id'],)).fetchone()
+        allowed_dates = json.loads(batch['dates'])
+        for d in selected_dates:
+            if d not in allowed_dates:
+                flash(f'日期 {d} 不在允许范围内')
+                return redirect(url_for('index'))
+        
+        selected_dates_json = json.dumps(selected_dates)
+        conn.execute('''UPDATE applications 
+                       SET name = ?, rank = ?, phone = ?, selected_dates = ?, reason = ?, work_content = ?, updated_at = CURRENT_TIMESTAMP
+                       WHERE id = ?''',
+                    (name, rank, phone, selected_dates_json, reason, work_content, app_id))
+        conn.commit()
+        flash('申请已更新')
+        return redirect(url_for('index') + '?phone=' + phone)
+    
+    # 获取申请信息
+    app = conn.execute('''SELECT a.*, b.name as batch_name, b.dates as batch_dates
+                           FROM applications a 
+                           JOIN overtime_batches b ON a.batch_id = b.id
+                           WHERE a.id = ?''', (app_id,)).fetchone()
+    
+    if not app:
+        flash('申请不存在')
+        return redirect(url_for('index'))
+    
+    app = dict(app)
+    app['selected_dates'] = json.loads(app['selected_dates'])
+    app['batch_dates'] = json.loads(app['batch_dates'])
+    
+    return render_template('edit_application.html', app=app)
+
+# 删除申请
+@app.route('/delete', methods=['POST'])
+def delete_application():
+    app_id = request.form.get('app_id')
+    phone = request.form.get('phone', '')
+    
+    conn = get_db()
+    
+    # 检查是否是管理员或者申请人本人
+    app = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
+    if not app:
+        flash('申请不存在')
+        return redirect(url_for('index'))
+    
+    # 允许任何人删除（管理员或知道手机号的人）
+    conn.execute('DELETE FROM applications WHERE id = ?', (app_id,))
+    conn.commit()
+    flash('申请已删除')
+    
+    if phone:
+        return redirect(url_for('index') + '?phone=' + phone)
     return redirect(url_for('index'))
 
 # 统计页面
