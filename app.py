@@ -3,6 +3,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from datetime import datetime, date, timedelta
 import json
 from io import BytesIO
+import mimetypes
+mimetypes.add_type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx')
 
 try:
     from openpyxl import Workbook
